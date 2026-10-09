@@ -127,6 +127,8 @@ def _describe(amount: int, unit: str, kind: str) -> str:
 
 def publication_date(call: dict) -> dt.date | None:
     """When the extract appeared in an official bulletin (BOP/DOGV), if the BDNS knows it."""
+    if call.get("publicacion"):
+        return iso_date(call["publicacion"])
     dates = [iso_date(a.get("fecha")) for a in call.get("anuncios") or []]
     dates = [d for d in dates if d]
     return min(dates) if dates else None

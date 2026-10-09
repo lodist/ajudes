@@ -10,7 +10,7 @@ import time
 import urllib.request
 
 from . import topics
-from .site import Item, deadline_text
+from .site import Item, deadline_text, place_line
 
 RECENT_DAYS = 2  # only announce what appeared in the last days, never an old backlog
 MAX_PER_RUN = 25
@@ -23,7 +23,7 @@ def configured() -> bool:
 def message(item: Item, today: dt.date) -> str:
     head, detail = deadline_text(item, today)
     topic = topics.BY_SLUG[item.topics[0]].label
-    return (f"<b>{html.escape(item.place.name)}</b> · {html.escape(topic)}\n"
+    return (f"<b>{html.escape(place_line(item))}</b> · {html.escape(topic)}\n"
             f"{html.escape(item.title)}\n{html.escape(head)}: {html.escape(detail)}\n{item.official_url}")
 
 

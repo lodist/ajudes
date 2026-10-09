@@ -12,33 +12,36 @@ import urllib.request
 
 API = "https://www.infosubvenciones.es/bdnstrans/api"
 WEB = "https://www.infosubvenciones.es/bdnstrans/GE/es"
-USER_AGENT = "ajudes/0.1"
-COMUNITAT_VALENCIANA = "54,55,56,57"  # region ids: the Comunitat plus Alicante, Castellón and Valencia
-INDIVIDUALS = "1"  # "personas físicas que no desarrollan actividad económica"
-PAUSE_SECONDS = 0.4  # the API is a free public service: one request at a time, gently
+USER_AGENT = "ajudes/0.2"
+PEOPLE_AND_BUSINESSES = "1,3,4"  # beneficiary types: individuals, SMEs and self-employed, large companies
+PAUSE_SECONDS = 0.3  # the API is a free public service: one request at a time, gently
 
 
 def _get(path: str, **params) -> dict:
     url = f"{API}/{path}?{urllib.parse.urlencode(params, safe='/,')}"
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
-    for attempt in range(3):
+    for attempt in range(4):
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
                 return json.load(response)
         except (urllib.error.URLError, TimeoutError):
-            if attempt == 2:
+            if attempt == 3:
                 raise
             time.sleep(5 * (attempt + 1))
     raise AssertionError("unreachable")
 
 
-def search(since: dt.date, until: dt.date, regions: str = COMUNITAT_VALENCIANA,
-           beneficiaries: str = INDIVIDUALS) -> list[dict]:
-    """Summaries of the announcements registered between two dates."""
+def search(since: dt.date, until: dt.date, regions: str | None = None,
+           beneficiaries: str | None = PEOPLE_AND_BUSINESSES) -> list[dict]:
+    """Summaries of the announcements registered between two dates (all of Spain by default)."""
+    filters = {"fechaDesde": f"{since:%d/%m/%Y}", "fechaHasta": f"{until:%d/%m/%Y}"}
+    if regions:
+        filters["regiones"] = regions
+    if beneficiaries:
+        filters["tiposBeneficiario"] = beneficiaries
     calls, page = [], 0
     while True:
-        data = _get("convocatorias/busqueda", vpd="GE", page=page, pageSize=100, regiones=regions,
-                    tiposBeneficiario=beneficiaries, fechaDesde=f"{since:%d/%m/%Y}", fechaHasta=f"{until:%d/%m/%Y}")
+        data = _get("convocatorias/busqueda", vpd="GE", page=page, pageSize=1000, **filters)
         calls.extend(data["content"])
         if data.get("last", True):
             return calls

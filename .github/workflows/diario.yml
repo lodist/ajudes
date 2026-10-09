@@ -2,7 +2,7 @@ name: Actualizar ayudas
 
 on:
   schedule:
-    - cron: "17 5 * * *"  # every day at 05:17 UTC (07:17 in Valencia in summer)
+    - cron: "17 5 * * *"  # every day at 05:17 UTC (07:17 in Spain in summer)
   workflow_dispatch:
 
 permissions:
@@ -17,6 +17,7 @@ concurrency:
 jobs:
   actualizar:
     runs-on: ubuntu-latest
+    timeout-minutes: 90  # the download stops itself after 60 minutes and carries on the next day
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,7 +26,7 @@ jobs:
       - name: Tests
         run: python -m unittest discover -s tests
       - name: Download, alert and build the site
-        run: python -m ayudas all
+        run: python -m ayudas all --budget-minutes 60
         env:
           SITE_URL: ${{ vars.SITE_URL }}  # empty until you own a domain: the GitHub Pages address is used
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

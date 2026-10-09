@@ -9,21 +9,55 @@ _ARTICLE = re.compile(r"^(.*?),\s*(la|el|els|les|los|las|l')$", re.IGNORECASE)
 _LEADING_ARTICLE = re.compile(r"^(el|la|els|les|los|las)\s+|^l'", re.IGNORECASE)
 
 # Bureaucratic openings that tell a citizen nothing; removed from the start of titles.
+_DOC = r"(?:extracto|resoluci[oó]n|decreto|acuerdo|anuncio|orden|providencia)"
+_DATE = r"(?:\d{1,2}\s+de\s+[a-záéíóú]+(?:\s+(?:de\s+)?\d{4})?|\d{1,2}/\d{1,2}/\d{2,4})"
+_AID = r"(?=(?:ayudas?|subvenci|becas?|premios?|bonos?|prestaci|l[ií]neas?|programas?|concesi|convocat|resoluci)\w*\b)"
+_RULE = r"(deben\s+)?(regir[aá]n|regir|rigen|regulan?)"  # "que deben regir", "que regulan"
 _PREAMBLES = [re.compile(pattern, re.IGNORECASE) for pattern in (
     r"^(expediente|expte\.?)\s*(n[.º°o]*\s*)?[\w./-]+\s*[:.\-–]?\s*",
-    r"^(?:(?:extracto|resoluci[oó]n|decreto|acuerdo|anuncio|orden|providencia)\b|resol\.).*?\bpor (la|el|lo) "
-    r"(que|cual) se (convocan?|aprueban?|tramitan?|regulan?|establecen?|efect[uú]an?)\s+",
+    r"^\d{6,}\s*[-–:.]?\s*",  # internal file numbers: "202604907006 subvención..."
+    r"^20\d\d\s*[-–:.]?\s+(?=\D)",  # a leading year: "2026 - Convocatoria de ayudas..."
+    r"^[«\"“'`]\s*",
+    # "Resolución ... por la que se convocan (y hacen públicas) ..." -> what is convened
+    rf"^(?:(?:del?\s+|la\s+|el\s+|por\s+)?{_DOC}\b|resol\.).*?\bpor (la|el|lo) (que|cual) se\s+"
+    r"((convocan?|aprueban?|tramitan?|regulan?|establecen?|efect[uú]an?|realizan?|abren?|inician?|ordenan?"
+    r"|procede\s+a|autoriza\s+el\s+gasto\s+y\s+se\s+aprueban?)"
+    r"(\s+y\s+(se\s+)?(hacen?\s+p[uú]blicas?|aprueban?|convocan?))?"
+    r"(\s+(para|en)\s+(el\s+)?(a[nñ]o\s+|ejercicio\s+)?\d{4})?\s+((la|el)\s+)?(apertura\s+y\s+)?)?",
+    # "Convocatoria de 16 de septiembre de 2026, del Vicerrectorado de X, de ayudas a..." -> "ayudas a..."
+    rf"^(convocatoria|resoluci[oó]n|orden|decreto|acuerdo)(\s+[a-z]{{2,}}/\d+/\d{{4}})?,?\s+de\s+{_DATE},\s*"
+    r"(del?\s+[^,]+,\s*)*(por\s+delegaci[oó]n,\s*)?(de\s+)?",
+    rf"^{_DOC}\s+(del?|de la)\s+[^,]+,\s*(de\s+)?(?=convocat)",  # "Resolución del director general, de convocatoria..."
+    rf"^{_DOC}\b[^:]*?\s+de\s+(?=convocatoria\s+de\b)",  # "Resolución de la consejera de X de convocatoria de..."
     r"^resoluci[oó]n\s+(de\s+(la\s+)?alcald[ií]a\s+)?n[.º°o]*\s*\d[\w/.-]*[^:–-]*[:–-]\s*(decreto\s+)?",
+    r"^decreto\s+(de\s+(la\s+)?alcald[ií]a\s+)?(n[.º°o]*\s*)?\d[\d/-]*\s+(?=convocat)",
+    rf"^(?:{_DOC}|aprobaci[oó]n)(\s+de(\s+la)?)?\s+(?=(convocat|concesi|bases))",  # "Resolución convocatoria para..."
+    rf"^{_DOC}\b.*?\b(que|por el que)\s+(se\s+)?(aprueban?|convocan?|regulan?)\s+((la|las|el|los)\s+)?",
+    r"^acuerdo\b.*?\brelativo\s+a\s+(la\s+)?",
+    r"^acuerdo\s+(de\s+(la\s+)?)?(aprobaci[oó]n\s+de\s+la\s+)?junta\s+(de\s+)?gobierno(\s+local)?\s+"
+    r"((de\s+)?aprobaci[oó]n\s+)?(de\s+)?",
     r"^anuncio d(el|e la)\b.*?\bsobre\s+",
     r"^(el\s+)?ayuntamiento de [^:,]+? (para|sobre)\s+(la\s+)?",
-    r"^extracto\s+(de\s+)?(las\s+)?",
-    r"^(aprobaci[oó]n\s+(de\s+)?(las\s+)?)?bases(\s+reguladoras)?"
-    r"(\s+(y|de la|de)\s+(la\s+)?convocatoria(\s+p[uú]blica)?)?\s+((de|para)\s+(la\s+|las\s+|los\s+|el\s+)?|del\s+)?",
-    r"^(la\s+)?convocatoria(\s+p[uú]blica)?(\s+anual)?(\s+(de|del|para)(\s+(la|las|el|los))?)?\s+",
-    r"^(la\s+)?concesi[oó]n(\s+directa)?\s+(de\s+(las\s+|los\s+)?|del\s+)",
+    r"^extract[oe]\s+(de\s+)?((la|las|el|los)\s+)?",  # also Catalan "extracte"
+    r"^(aprobaci[oó]n\s+(de\s+)?)?(las\s+)?(bases|bbrr)(\s+(reguladoras|espec[ií]ficas|generales))?"
+    r"(\s+(y|de la|de)\s+(la\s+)?convocatoria(\s+p[uú]blica)?(\s+\d{4})?)?"
+    rf"(\s+que\s+{_RULE}(\s+(la|las|el|los))?)?"
+    r"\s+((de|para)\s+(la\s+|las\s+|los\s+|el\s+)?|del\s+)?",
+    r"^(la\s+)?convocat[oòó]rias?(\s+(p[uú]blica|anual|anticipada|extraordinaria|ordinaria))*"
+    r"(\s+(para\s+el\s+|del?\s+|en\s+|correspondiente\s+al\s+)?(a[nñ]o\s+|ejercicio\s+)?\d{4})?(\s+de\s+participaci[oó]n)?"
+    r"(\s+(de|del|para|en)(\s+(la|las|el|los))?)?(\s*[:–-])?\s+",
+    rf"^que\s+{_RULE}\s+((la|las|el|los)\s+)?(solicitud\s+y\s+)?",
+    r"^(por|para)\s+(el|la)\s+(?=(concesi|otorgamiento))",
+    r"^(el\s+)?procedimiento\s+de\s+(?=concesi)",
+    r"^(la\s+)?(concesi[oó]n|otorgamiento)(\s+directa)?\s+((de\s+(las\s+|los\s+)?|del\s+)"
+    r"|(?=(ayudas?|subvenci|becas?|premios?|prestaci)))",
+    rf"^del?\s+((la|las|el|los)\s+)?{_AID}",  # "De subvenciones a deportistas"
+    r"^y\s+(se\s+(convocan?|aprueban?)\s+)?",  # left over from "...se aprueban las bases y (se convocan)..."
+    rf"^(la|las|el|los)\s+{_AID}",
 )]
 _FILLER = re.compile(
-    r",?\s*(?:en r[eé]gimen de|por el procedimiento de|por|mediante|en)\s+concurrencia competitiva\b,?"
+    r",?\s*(?:en\s+r[eé]g(?:imen|\.)\s+de|por\s+(?:el\s+)?procedimiento\s+de|por|mediante|en)\s+"
+    r"conc(?:urrencia\s+|\.\s*)comp(?:etitiva\b|\.)\s*,?"  # "en régimen de concurrencia competitiva", "en rég. de conc. comp."
     r"|\s*\((?:decreto|resoluci[oó]n|expediente|expte?\.?)[^)]*\)",
     re.IGNORECASE)
 _ACRONYMS = ("dana", "bop", "boe", "dogv", "iprem", "irpf", "iva", "upv", "crue", "peiss", "ong", "uji", "umh",
@@ -91,20 +125,36 @@ def _calm(text: str, names: tuple[str, ...]) -> str:
     return text
 
 
+def _balance_quotes(text: str) -> str:
+    """Drop quote marks left unpaired once the preamble is gone."""
+    text = text.replace("`", "")
+    for opening, closing in (("«", "»"), ("“", "”")):
+        if text.count(opening) != text.count(closing):
+            text = text.replace(opening, "").replace(closing, "")
+    return text.replace('"', "") if text.count('"') % 2 else text
+
+
+def looks_abbreviated(title: str | None) -> bool:
+    """Titles squeezed into the BDNS field: 'FEADER.AYUD.MANT.VIÑEDO SECANO...'."""
+    return len(re.findall(r"[^\W\d_]{2,}\.[^\W\d_]", title or "")) >= 2
+
+
 def clean_title(raw: str | None, names: tuple[str, ...] = ()) -> str:
     """Turn a bureaucratic announcement title into something a person can read.
 
     `names` are place names to restore when an ALL-CAPS title gets lower-cased.
     """
     original = re.sub(r"\s+", " ", (raw or "").replace("*", "")).strip()
+    original = re.sub(r"(?<=\w)¿(?=\w)", "'", original)  # a broken apostrophe: "l¿ajuntament"
     text = original
-    for _ in range(4):
+    for _ in range(5):
         before = text
+        text = re.sub(r"\s+", " ", _FILLER.sub(" ", text)).strip()  # "concesión, en régimen de..., de ayudas"
         for pattern in _PREAMBLES:
             text = pattern.sub("", text, count=1).strip()
         if text == before:
             break
-    text = _FILLER.sub(" ", text)
+    text = _balance_quotes(_FILLER.sub(" ", text))
     text = re.sub(r"\s+", " ", text).strip(" .,;:-–")
     if len(text) < 8:  # the clean-up ate everything useful
         text = original.strip(" .")
