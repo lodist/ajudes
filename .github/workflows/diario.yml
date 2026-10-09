@@ -1,0 +1,53 @@
+name: Actualizar ayudas
+
+on:
+  schedule:
+    - cron: "17 5 * * *"  # every day at 05:17 UTC (07:17 in Valencia in summer)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: actualizar-ayudas
+  cancel-in-progress: false
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tests
+        run: python -m unittest discover -s tests
+      - name: Download, alert and build the site
+        run: python -m ayudas all
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}  # empty until you own a domain: the GitHub Pages address is used
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID }}
+          TELEGRAM_CHANNEL_URL: ${{ vars.TELEGRAM_CHANNEL_URL }}
+      - name: Save the data in the repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || git commit -m "Datos del $(date -u +%F)"
+          git push
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  publicar:
+    needs: actualizar
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
